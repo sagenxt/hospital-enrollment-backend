@@ -1,9 +1,14 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const sequelize = require('./src/models/sequelize');
 const hospitalRoutes = require('./src/routes/hospital');
 
 const app = express();
+// Allow CORS from any origin
+app.use(cors());
+// Also handle preflight requests for all routes
+app.options('*', cors());
 app.use(express.json());
 
 app.use('/hospitals', hospitalRoutes);
