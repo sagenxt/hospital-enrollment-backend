@@ -16,6 +16,7 @@ router.post('/login', express.json(), authController.login);
 router.use(authMiddleware);
 router.get('/', hospitalController.getHospitalsByStatus);
 router.put('/:id/status', hospitalController.updateHospitalStatus);
+router.get('/:id', hospitalController.getDetailsByHospitalId);
 router.get('/:id/documents', hospitalController.getDocumentsByHospitalId);
 
 module.exports = router;

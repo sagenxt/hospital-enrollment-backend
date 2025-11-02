@@ -35,6 +35,16 @@ exports.updateHospitalStatus = async (req, res) => {
   }
 };
 
+exports.getDetailsByHospitalId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const details = await hospitalService.getDetailsByHospitalId(id);
+    res.json({ ...details });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getDocumentsByHospitalId = async (req, res) => {
   try {
     const { id } = req.params;

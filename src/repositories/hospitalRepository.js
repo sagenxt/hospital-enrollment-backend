@@ -50,6 +50,13 @@ exports.updateHospitalStatus = async (id, status) => {
   return updated > 0;
 };
 
+exports.getHospitalsByHospitalId = async (hospitalId) => {
+    const hospital = await Hospital.findByPk(hospitalId, {
+        attributes: { exclude: ['metadata'] }
+    });
+    return hospital;
+}
+
 exports.getDocumentsByHospitalId = async (hospitalId) => {
   // Fetch all fields so we can include file_data for base64
   const docs = await Document.findAll({

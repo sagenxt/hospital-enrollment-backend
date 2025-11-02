@@ -645,6 +645,12 @@ exports.updateHospitalStatus = async (id, status) => {
   return await hospitalRepository.updateHospitalStatus(id, status);
 };
 
+exports.getDetailsByHospitalId = async (hospitalId) => {
+    const hospitalInfo = await hospitalRepository.getHospitalsByHospitalId(hospitalId);
+    const documents = await hospitalRepository.getDocumentsByHospitalId(hospitalId);
+    return { hospital: hospitalInfo, documents: documents };
+}
+
 exports.getDocumentsByHospitalId = async (hospitalId) => {
   return await hospitalRepository.getDocumentsByHospitalId(hospitalId);
 };
