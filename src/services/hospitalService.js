@@ -1,33 +1,116 @@
 const PDFDocument = require('pdfkit');
-// pdfkit-table is an optional helper for robust table rendering across pages
-try {
-  require('pdfkit-table');
-} catch (e) {
-  // not installed - dynamic table fallback will be used
-}
 
 const hospitalRepository = require('../repositories/hospitalRepository');
 
 function extractHospitalData(body) {
+  // body can be either flat (all fields at top-level), nested metadata object,
+  // or multipart fields using names like 'metadata[field]'. We'll normalize all.
   const mainDetails = {
-    name: body.name,
-    city: body.city,
-    address: body.address,
-    telephone: body.telephone,
-    mobile: body.mobile,
-    fax: body.fax,
-    email: body.email,
-    superintendent_name: body.superintendent_name,
-    superintendent_contact: body.superintendent_contact,
-    superintendent_email: body.superintendent_email,
-    superintendent_phone: body.superintendent_phone
+    name: body && body.name,
+    city: body && body.city,
+    address: body && body.address,
+    telephone: body && body.telephone,
+    mobile: body && body.mobile,
+    fax: body && body.fax,
+    email: body && body.email,
+    superintendent_name: body && body.superintendent_name,
+    superintendent_contact: body && body.superintendent_contact,
+    superintendent_email: body && body.superintendent_email,
+    superintendent_phone: body && body.superintendent_phone
   };
-  const metadata = { ...body };
-  for (const key of Object.keys(mainDetails)) {
-    delete metadata[key];
+
+  // Start with an empty metadata object and merge candidates into it
+  const metadata = {};
+
+  if (!body) return { mainDetails, metadata };
+
+  // 1) If body.metadata exists and is an object, merge it
+  if (typeof body.metadata === 'object' && body.metadata !== null) {
+    Object.assign(metadata, body.metadata);
   }
+
+  // 2) If body.metadata exists as a JSON string, try to parse and merge
+  if (typeof body.metadata === 'string') {
+    try { Object.assign(metadata, JSON.parse(body.metadata)); } catch (e) { /* ignore */ }
+  }
+
+  // 3) Merge any top-level fields that are not part of mainDetails into metadata
+  for (const [k, v] of Object.entries(body)) {
+    if (k === 'metadata') continue;
+    if (Object.prototype.hasOwnProperty.call(mainDetails, k)) continue;
+    // handle form field names like 'metadata[fieldName]' produced by some clients
+    const metadataFieldMatch = k.match(/^metadata\[(.+)\]$/);
+    if (metadataFieldMatch) {
+      const innerKey = metadataFieldMatch[1];
+      metadata[innerKey] = v;
+      continue;
+    }
+    // Otherwise copy to metadata if not empty
+    metadata[k] = v;
+  }
+
+  // 4) For any metadata entries that are JSON strings (arrays/objects), parse them
+  for (const key of Object.keys(metadata)) {
+    const val = metadata[key];
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try { metadata[key] = JSON.parse(trimmed); continue; } catch (e) { /* ignore */ }
+      }
+      // Normalize boolean-like strings
+      if (trimmed.toLowerCase() === 'true' || trimmed.toLowerCase() === 'yes' || trimmed === '1') metadata[key] = 'YES';
+      else if (trimmed.toLowerCase() === 'false' || trimmed.toLowerCase() === 'no' || trimmed === '0') metadata[key] = 'NO';
+    }
+  }
+
+  // Remove mainDetails keys from metadata if still present
+  for (const key of Object.keys(mainDetails)) delete metadata[key];
+
+  // Normalize commonly used metadata fields so tables get predictable values
+  function normString(v, def = 'N/A') {
+    if (v === undefined || v === null) return def;
+    if (typeof v === 'string' && v.trim() === '') return def;
+    return v;
+  }
+
+  // specialties: ensure array (may come as JSON string or as array)
+  if (metadata.specialties) {
+    if (typeof metadata.specialties === 'string') {
+      try { metadata.specialties = JSON.parse(metadata.specialties); } catch (e) { /* keep as string */ }
+    }
+    if (!Array.isArray(metadata.specialties)) {
+      // if it's a comma-separated list, split it
+      if (typeof metadata.specialties === 'string') {
+        metadata.specialties = metadata.specialties.split(',').map(s => ({ name: s.trim(), head: 'N/A' }));
+      } else {
+        metadata.specialties = [];
+      }
+    }
+  } else {
+    metadata.specialties = [];
+  }
+
+  // Tie-ups and binary flags
+  metadata.empaneled_cghs = normString(metadata.empaneled_cghs, 'N/A');
+  metadata.recognized_aarogyasri = normString(metadata.recognized_aarogyasri, 'N/A');
+  metadata.tpi_tieup = normString(metadata.tpi_tieup, 'N/A');
+
+  // Biomedical
+  metadata.biomedical_waste = normString(metadata.biomedical_waste, 'N/A');
+  metadata.pcb_license = normString(metadata.pcb_license, 'N/A');
+
+  // Bank defaults
+  metadata.bank_name = normString(metadata.bank_name, 'N/A');
+  metadata.bank_branch = normString(metadata.bank_branch, 'N/A');
+  metadata.account_number = normString(metadata.account_number, 'N/A');
+  metadata.ifsc_code = normString(metadata.ifsc_code, 'N/A');
+  metadata.micr_no = normString(metadata.micr_no, 'N/A');
+
   return { mainDetails, metadata };
 }
+
+// export for testing
+exports._extractHospitalData = extractHospitalData;
 
 function generateAnnexurePDF(mainDetails, metadata) {
   return new Promise((resolve, reject) => {
@@ -50,6 +133,7 @@ function generateAnnexurePDF(mainDetails, metadata) {
         let currentY = y;
         const pageTop = doc.page.margins.top || 40;
         const pageBottom = doc.page.height - (doc.page.margins.bottom || 40);
+        const footerHeight = 30; // Reserve space for footer
 
         // internal helper to draw header at given y
         function drawHeader(atY) {
@@ -68,13 +152,18 @@ function generateAnnexurePDF(mainDetails, metadata) {
 
         // Track the top Y for the current page segment so we can draw borders for that segment
         let segmentStartY = currentY;
+        // Ensure there's room for header + at least one data row; if not, start a new page.
+        if (currentY + rowHeight + rowHeight > pageBottom - footerHeight) {
+          doc.addPage();
+          currentY = pageTop;
+        }
         drawHeader(currentY);
         currentY += rowHeight;
 
         // Draw rows and handle page breaks
         rows.forEach((row, rowIndex) => {
           // If next row doesn't fit, finish current page segment and start a new page
-          if (currentY + rowHeight > pageBottom) {
+          if (currentY + rowHeight > pageBottom - footerHeight) {
             // Draw borders for the segment we just wrote
             doc.strokeColor('#cccccc').lineWidth(0.5);
             // vertical lines for this segment
@@ -132,6 +221,8 @@ function generateAnnexurePDF(mainDetails, metadata) {
              .stroke();
         }
 
+        // sync pdfkit internal y position and return
+        try { doc.y = currentY; } catch (e) { /* ignore */ }
         return currentY + 5;
       }
 
@@ -161,12 +252,21 @@ function generateAnnexurePDF(mainDetails, metadata) {
         }
 
         let segmentStartY = currentY;
+        // Ensure there's room for header + at least one data row; if not, start a new page.
+        if (currentY + minRowHeight + minRowHeight > pageBottom) {
+          doc.addPage();
+          currentY = pageTop;
+        }
         drawHeader(currentY);
         currentY += minRowHeight;
+        console.log('[PDF DEBUG] drawDynamicTable initial currentY=', currentY, 'pageBottom=', pageBottom, 'colWidths=', colWidths);
 
         rows.forEach((row, rowIndex) => {
-          // Calculate row height based on rendered text height for each cell
-          let rowHeight = minRowHeight;
+          if (!Array.isArray(row)) {
+            console.log('[PDF DEBUG] drawDynamicTable row is not array, rowIndex=', rowIndex, 'row=', row);
+          }
+           // Calculate row height based on rendered text height for each cell
+           let rowHeight = minRowHeight;
           row.forEach((cell, cellIndex) => {
             const text = (cell === undefined || cell === null) ? 'N/A' : cell.toString();
             // Ensure consistent font metrics while measuring
@@ -235,25 +335,15 @@ function generateAnnexurePDF(mainDetails, metadata) {
           doc.moveTo(currX, segmentStartY).lineTo(currX, currentY).stroke();
         });
 
+        // sync pdfkit internal y position and return
+        try { doc.y = currentY; } catch (e) { /* ignore */ }
         return currentY + 5;
       }
 
-      // Prefer library table renderer when available to avoid subtle ordering issues
+      // Auto table wrapper - use internal drawDynamicTable to ensure predictable behavior
       function drawAutoTable(x, y, width, headers, rows, options = {}) {
-        // If pdfkit-table is installed it augments doc with .table
-        if (typeof doc.table === 'function') {
-          const table = { headers: headers, rows: rows };
-          // Call synchronously; many pdfkit-table implementations render synchronously and update doc.y
-          try {
-            doc.table(table, { x: x, width: width, prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8), columnSpacing: 5, padding: 3 });
-          } catch (e) {
-            // If synchronous call fails, fall back to internal renderer
-            return drawDynamicTable(x, y, width, headers, rows, options);
-          }
-          return doc.y + 5;
-        }
-
-        // fallback to internal implementation
+        console.log('[PDF DEBUG] drawAutoTable called headers=', headers, 'rowsCount=', Array.isArray(rows) ? rows.length : typeof rows);
+        try { console.log('[PDF DEBUG] drawAutoTable rows sample:', Array.isArray(rows) ? rows.slice(0,3) : rows); } catch (e) { console.log('[PDF DEBUG] drawAutoTable sample error', e); }
         return drawDynamicTable(x, y, width, headers, rows, options);
       }
 
@@ -351,12 +441,6 @@ function generateAnnexurePDF(mainDetails, metadata) {
         currentY += 15;
       }
 
-      // Check for new page
-      if (currentY > 720) {
-        doc.addPage();
-        currentY = 40;
-      }
-
       // Section D: Availability of Doctors
       doc.font('Helvetica-Bold')
          .fontSize(12)
@@ -393,12 +477,6 @@ function generateAnnexurePDF(mainDetails, metadata) {
           ['Patient: Nurse Ratio - ICCU/ICU (Norm 1:1)', metadata.patient_nurse_ratio_icu]
         ]
       );
-
-      // Check for new page
-      if (currentY > 720) {
-        doc.addPage();
-        currentY = 40;
-      }
 
       // Section F: Other Staff
       doc.font('Helvetica-Bold')
@@ -447,12 +525,6 @@ function generateAnnexurePDF(mainDetails, metadata) {
           ['Alternate Power Source', metadata.alt_power]
         ]
       );
-
-      // Check for new page
-      if (currentY > 650) {
-        doc.addPage();
-        currentY = 40;
-      }
 
       // Section H: Laboratory Services
       doc.font('Helvetica-Bold')
@@ -528,11 +600,6 @@ function generateAnnexurePDF(mainDetails, metadata) {
         ]
       );
 
-      // Check for new page
-      if (currentY > 650) {
-        doc.addPage();
-        currentY = 40;
-      }
 
       // Section L: Other Tie Ups (using simplified dynamic table)
       doc.font('Helvetica-Bold')
