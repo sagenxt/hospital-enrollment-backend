@@ -3,10 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const sequelize = require('./src/models/sequelize');
 const hospitalRoutes = require('./src/routes/hospital');
+const securityHeaders = require('./src/middleware/securityHeaders');
 
 const app = express();
 // Allow CORS from any origin
 app.use(cors());
+// Security headers to mitigate clickjacking and related risks
+app.use(securityHeaders);
 // Also handle preflight requests for all routes
 app.options('*', cors());
 app.use(express.json());

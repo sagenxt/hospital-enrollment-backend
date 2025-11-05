@@ -676,6 +676,31 @@ function generateAnnexurePDF(mainDetails, metadata) {
 }
 
 exports.createHospital = async (req) => {
+  // Validate uploaded files: accept only PDFs and max size 10MB
+  if (req.files && req.files.length) {
+    const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+    for (const file of req.files) {
+      const name = (file.originalname || '').toString();
+      const mimetype = (file.mimetype || '').toString();
+      const hasPdfExt = name.toLowerCase().endsWith('.pdf');
+      const isPdfMime = mimetype === 'application/pdf';
+      const isPdf = isPdfMime || hasPdfExt;
+
+      if (!isPdf) {
+        const err = new Error('Only PDF files are allowed');
+        err.status = 400;
+        throw err;
+      }
+
+      const size = (typeof file.size === 'number') ? file.size : (file.buffer ? file.buffer.length : 0);
+      if (size > MAX_BYTES) {
+        const err = new Error('Only PDF files of size 10MB or less are allowed');
+        err.status = 400;
+        throw err;
+      }
+    }
+  }
+
   const { mainDetails, metadata } = extractHospitalData(req.body);
   const db = hospitalRepository.getDb(); // Get DB connection (adjust as per your repo)
   const transaction = await db.transaction();

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const tokenCache = require('../lib/tokenCache');
 
 module.exports = function (req, res, next) {
   // Allow preflight requests
@@ -13,8 +14,14 @@ module.exports = function (req, res, next) {
     if (err) {
       return res.status(401).json({ success: false, message: 'Invalid or expired token' });
     }
+
+    // If token contains jti, ensure it's not revoked in the in-memory cache
+    const jti = decoded && decoded.jti;
+    if (jti && tokenCache.isRevoked(jti)) {
+      return res.status(401).json({ success: false, message: 'Token revoked' });
+    }
+
     req.user = decoded;
     next();
   });
 };
-

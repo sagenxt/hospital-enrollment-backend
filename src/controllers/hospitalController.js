@@ -5,7 +5,8 @@ exports.createHospital = async (req, res) => {
     const result = await hospitalService.createHospital(req);
     res.status(201).json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err && err.status ? err.status : 500;
+    res.status(status).json({ error: err.message });
   }
 };
 
@@ -15,7 +16,8 @@ exports.getHospitalsByStatus = async (req, res) => {
     const result = await hospitalService.getHospitalsByStatus(status, parseInt(page), parseInt(limit));
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err && err.status ? err.status : 500;
+    res.status(status).json({ error: err.message });
   }
 };
 
@@ -31,7 +33,8 @@ exports.updateHospitalStatus = async (req, res) => {
       res.status(404).json({ error: 'Hospital not found' });
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err && err.status ? err.status : 500;
+    res.status(status).json({ error: err.message });
   }
 };
 
@@ -41,7 +44,8 @@ exports.getDetailsByHospitalId = async (req, res) => {
     const details = await hospitalService.getDetailsByHospitalId(id);
     res.json({ ...details });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err && err.status ? err.status : 500;
+    res.status(status).json({ error: err.message });
   }
 };
 
@@ -51,6 +55,7 @@ exports.getDocumentsByHospitalId = async (req, res) => {
     const documents = await hospitalService.getDocumentsByHospitalId(id);
     res.json({ documents });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err && err.status ? err.status : 500;
+    res.status(status).json({ error: err.message });
   }
 };

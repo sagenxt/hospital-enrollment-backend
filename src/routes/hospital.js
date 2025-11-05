@@ -11,6 +11,7 @@ const upload = multer({ storage });
 // Public routes
 router.post('/', upload.any(), hospitalController.createHospital);
 router.post('/login', express.json(), authController.login);
+router.post('/logout', authController.logout);
 
 // Protected routes
 router.use(authMiddleware);
