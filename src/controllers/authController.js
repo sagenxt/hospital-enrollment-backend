@@ -6,7 +6,7 @@ const SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 exports.login = (req, res) => {
   const { username, password } = req.body;
-  if (username === 'Admin' && password === 'Admin') {
+  if (username === 'Admin' && password === 'DeptAdm!n@2025') {
     // Generate a unique jti for the token and sign token valid for 1 hour
     const jti = randomUUID();
     // Do not include jti in the payload when also passing jwtid option (jsonwebtoken will add jti)
