@@ -9,8 +9,12 @@ exports.login = (req, res) => {
   if (username === 'Admin' && password === 'DeptAdm!n@2025') {
     // Generate a unique jti for the token and sign token valid for 1 hour
     const jti = randomUUID();
-    // Do not include jti in the payload when also passing jwtid option (jsonwebtoken will add jti)
-    const token = jwt.sign({ username }, SECRET, { expiresIn: '1h', jwtid: jti });
+    // Build a clean payload and ensure there's no jti property already present
+    const payload = { username };
+    if (Object.prototype.hasOwnProperty.call(payload, 'jti')) delete payload.jti;
+
+    // Use the jwtid option so jsonwebtoken adds the jti in the token header/payload
+    const token = jwt.sign(payload, SECRET, { expiresIn: '1h', jwtid: jti });
     return res.json({ success: true, message: 'Login successful', token, jti });
   }
   return res.status(401).json({ success: false, message: 'Invalid credentials' });

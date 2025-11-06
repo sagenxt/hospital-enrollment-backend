@@ -26,6 +26,9 @@ exports.updateHospitalStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     if (!status) return res.status(400).json({ error: 'Status is required' });
+    if(status !== 'new' && status !== 'verified' && status !== 'assigned') {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
     const updated = await hospitalService.updateHospitalStatus(id, status);
     if (updated) {
       res.json({ success: true });

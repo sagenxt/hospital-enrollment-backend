@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+const path = require('path');
 
 const hospitalRepository = require('../repositories/hospitalRepository');
 
@@ -679,15 +680,30 @@ exports.createHospital = async (req) => {
   // Validate uploaded files: accept only PDFs and max size 10MB
   if (req.files && req.files.length) {
     const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+    const suspiciousPreExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.heic', '.tif', '.tiff', '.exe', '.zip', '.rar', '.7z', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']);
+
     for (const file of req.files) {
       const name = (file.originalname || '').toString();
       const mimetype = (file.mimetype || '').toString();
-      const hasPdfExt = name.toLowerCase().endsWith('.pdf');
+
+      // Use path.extname to get the real final extension
+      const ext = path.extname(name).toLowerCase();
+      const hasPdfExt = ext === '.pdf';
+
+      // Detect a hidden/preceding extension like name.png.pdf
+      const nameWithoutExt = name.slice(0, name.length - ext.length);
+      const preExt = path.extname(nameWithoutExt).toLowerCase();
+      const hasSuspiciousPreExt = suspiciousPreExtensions.has(preExt);
+
+      // Check MIME and file signature. Prefer signature when available.
       const isPdfMime = mimetype === 'application/pdf';
-      const isPdf = isPdfMime || hasPdfExt;
+
+      // Final decision: must have .pdf final extension, must NOT have suspicious preceding extension,
+      // and at least one of (mime says pdf OR buffer signature looks like PDF).
+      const isPdf = hasPdfExt && !hasSuspiciousPreExt && isPdfMime;
 
       if (!isPdf) {
-        const err = new Error('Only PDF files are allowed');
+        const err = new Error('Only valid PDF files are allowed (no double extensions like .png.pdf)');
         err.status = 400;
         throw err;
       }
