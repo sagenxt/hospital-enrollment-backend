@@ -693,6 +693,11 @@ exports.createHospital = async (req) => {
       // Detect a hidden/preceding extension like name.png.pdf
       const nameWithoutExt = name.slice(0, name.length - ext.length);
       const preExt = path.extname(nameWithoutExt).toLowerCase();
+      if(preExt.indexOf('.') !== -1){
+        const err = new Error('Only valid PDF files are allowed (no double extensions like .png.pdf)');
+        err.status = 400;
+        throw err;
+      }
       const hasSuspiciousPreExt = suspiciousPreExtensions.has(preExt);
 
       // Check MIME and file signature. Prefer signature when available.
