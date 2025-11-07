@@ -1,5 +1,6 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
+const fs = require('fs');
 
 const hospitalRepository = require('../repositories/hospitalRepository');
 
@@ -693,19 +694,48 @@ exports.createHospital = async (req) => {
       // Detect a hidden/preceding extension like name.png.pdf
       const nameWithoutExt = name.slice(0, name.length - ext.length);
       const preExt = path.extname(nameWithoutExt).toLowerCase();
-      if(preExt.indexOf('.') !== -1){
+      // isDoubleExtension: true when there's a preceding extension (e.g. name.png.pdf)
+      const isDoubleExtension = preExt !== '';
+      const hasSuspiciousPreExt = suspiciousPreExtensions.has(preExt);
+
+      // If there is a suspicious preceding extension (e.g. .png.pdf), reject immediately
+      if (isDoubleExtension && hasSuspiciousPreExt) {
         const err = new Error('Only valid PDF files are allowed (no double extensions like .png.pdf)');
         err.status = 400;
         throw err;
       }
-      const hasSuspiciousPreExt = suspiciousPreExtensions.has(preExt);
 
       // Check MIME and file signature. Prefer signature when available.
       const isPdfMime = mimetype === 'application/pdf';
 
-      // Final decision: must have .pdf final extension, must NOT have suspicious preceding extension,
+      // Read buffer if not present (e.g., file saved to disk)
+      let buffer = file.buffer;
+      if (!buffer && file.path) {
+        try {
+          buffer = fs.readFileSync(file.path);
+        } catch (e) {
+          buffer = null;
+        }
+      }
+
+      // Check PDF magic header and EOF marker from content when we have a buffer
+      let isPdfSignature = false;
+      if (buffer && buffer.length >= 5) {
+        try {
+          const header = buffer.slice(0, 5).toString('utf8'); // should be '%PDF-'
+          const tailSlice = buffer.slice(Math.max(0, buffer.length - 1024)); // last up to 1KB
+          const tailStr = tailSlice.toString('utf8');
+          const hasPdfHeader = header === '%PDF-';
+          const hasPdfEOF = /%%EOF/.test(tailStr);
+          isPdfSignature = hasPdfHeader && hasPdfEOF;
+        } catch (e) {
+          isPdfSignature = false;
+        }
+      }
+
+      // Final decision: must have .pdf final extension, must NOT have a suspicious preceding extension,
       // and at least one of (mime says pdf OR buffer signature looks like PDF).
-      const isPdf = hasPdfExt && !hasSuspiciousPreExt && isPdfMime;
+      const isPdf = hasPdfExt && !hasSuspiciousPreExt && (isPdfMime || isPdfSignature);
 
       if (!isPdf) {
         const err = new Error('Only valid PDF files are allowed (no double extensions like .png.pdf)');
@@ -713,7 +743,7 @@ exports.createHospital = async (req) => {
         throw err;
       }
 
-      const size = (typeof file.size === 'number') ? file.size : (file.buffer ? file.buffer.length : 0);
+      const size = (typeof file.size === 'number') ? file.size : (buffer ? buffer.length : 0);
       if (size > MAX_BYTES) {
         const err = new Error('Only PDF files of size 10MB or less are allowed');
         err.status = 400;
