@@ -8,7 +8,7 @@ const securityHeaders = require('./src/middleware/securityHeaders');
 const app = express();
 // Allow only specific origins
 const allowedOrigins = [
-  'https://eoi-application.vercel.app/',
+  'https://eoi-application.vercel.app',
   'http://localhost:3000',
 ];
 const corsOptions = {

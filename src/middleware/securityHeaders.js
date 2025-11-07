@@ -8,7 +8,7 @@ module.exports = function securityHeaders(req, res, next) {
     // X-Frame-Options - legacy but widely supported
     res.setHeader('X-Frame-Options', process.env.X_FRAME_OPTIONS || 'DENY');
 
-    res.setHeader("Access-Control-Allow-Origin", "https://eoi-application.vercel.app/, http://localhost:3000")
+    res.setHeader("Access-Control-Allow-Origin", "https://eoi-application.vercel.app")
 
     // X-Content-Type-Options
     if (!res.getHeader('X-Content-Type-Options')) res.setHeader('X-Content-Type-Options', process.env.X_CONTENT_TYPE_OPTIONS || 'nosniff');
