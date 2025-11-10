@@ -1,7 +1,7 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
-const fetch = require('node-fetch');
+const axios = require('axios');
 
 
 const hospitalRepository = require('../repositories/hospitalRepository');
@@ -794,10 +794,21 @@ exports.verifyGoogleRecaptcha = async (req) => {
     const recaptchaResponse = req.body['recaptchaToken'];
 
     // Verify URL
-    const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaResponse}&remoteip=${req.connection.remoteAddress}`;
+    // const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaResponse}&remoteip=${req.connection.remoteAddress}`;
     // Make request to verify URL
-    const response = await fetch(verifyUrl, { method: 'POST' });
-    const body = await response.json();
+    // const response = await fetch(verifyUrl, { method: 'POST' });
+    // const body = await response.json();
+    // Build form-encoded body as required by Google
+    const params = new URLSearchParams();
+    params.append('secret', secretKey);
+    params.append('response', recaptchaResponse);
+    if (req.connection && req.connection.remoteAddress) params.append('remoteip', req.connection.remoteAddress);
+
+    const axiosRes = await axios.post('https://www.google.com/recaptcha/api/siteverify', params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 5000
+    });
+    const body = axiosRes.data;
 
     if(body.success !== undefined && !body.success) {
         throw new Error("Failed captcha verification");
