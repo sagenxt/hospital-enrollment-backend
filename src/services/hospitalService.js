@@ -787,7 +787,7 @@ exports.createHospital = async (req) => {
 exports.verifyGoogleRecaptcha = async (req) => {
 
   if(req.body['recaptchaToken'] === undefined || req.body['recaptchaToken'] === '' || req.body['recaptchaToken'] === null) {
-    throw new Error("Please select captcha");
+    throw  Error("Please select captcha");
   }
 
   const secretKey = process.env.GOOGLE_RECAPTCHA_SECRET_KEY;
@@ -802,7 +802,7 @@ exports.verifyGoogleRecaptcha = async (req) => {
     const params = new URLSearchParams();
     params.append('secret', secretKey);
     params.append('response', recaptchaResponse);
-    if (req.connection && req.connection.remoteAddress) params.append('remoteip', req.connection.remoteAddress);
+    if (req.headers.remoteaddress) params.append('remoteip', req.headers.remoteaddress);
 
     const axiosRes = await axios.post('https://www.google.com/recaptcha/api/siteverify', params.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -811,7 +811,7 @@ exports.verifyGoogleRecaptcha = async (req) => {
     const body = axiosRes.data;
 
     if(body.success !== undefined && !body.success) {
-        throw new Error("Failed captcha verification");
+        throw  Error("Failed captcha verification");
     }
 }
 

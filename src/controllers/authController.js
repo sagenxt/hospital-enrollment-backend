@@ -7,7 +7,11 @@ const SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 exports.login = async (req, res) => {
   const { username, password } = req.body;
-  await verifyGoogleRecaptcha(req)
+  try{
+    await verifyGoogleRecaptcha(req)
+  } catch (err){
+    return res.status(400).json({ success: false, message: 'reCAPTCHA verification failed' });
+  }
   if (username === 'Admin' && password === 'DeptAdm!n@2025') {
     // Generate a unique jti for the token and sign token valid for 1 hour
     const jti = randomUUID();
