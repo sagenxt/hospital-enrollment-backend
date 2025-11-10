@@ -1,6 +1,8 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
+const fetch = require('node-fetch');
+
 
 const hospitalRepository = require('../repositories/hospitalRepository');
 
@@ -679,6 +681,8 @@ function generateAnnexurePDF(mainDetails, metadata) {
 
 exports.createHospital = async (req) => {
   // Validate uploaded files: accept only PDFs and max size 10MB
+  await this.verifyGoogleRecaptcha(req);
+
   if (req.files && req.files.length) {
     const MAX_BYTES = 10 * 1024 * 1024; // 10MB
     const suspiciousPreExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.heic', '.tif', '.tiff', '.exe', '.zip', '.rar', '.7z', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']);
@@ -779,6 +783,26 @@ exports.createHospital = async (req) => {
     throw error;
   }
 };
+
+exports.verifyGoogleRecaptcha = async (req) => {
+
+  if(req.body['recaptchaToken'] === undefined || req.body['recaptchaToken'] === '' || req.body['recaptchaToken'] === null) {
+    throw new Error("Please select captcha");
+  }
+
+  const secretKey = process.env.GOOGLE_RECAPTCHA_SECRET_KEY;
+    const recaptchaResponse = req.body['recaptchaToken'];
+
+    // Verify URL
+    const verifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaResponse}&remoteip=${req.connection.remoteAddress}`;
+    // Make request to verify URL
+    const response = await fetch(verifyUrl, { method: 'POST' });
+    const body = await response.json();
+
+    if(body.success !== undefined && !body.success) {
+        throw new Error("Failed captcha verification");
+    }
+}
 
 exports.getHospitalsByStatus = async (status, page, limit) => {
   return await hospitalRepository.getHospitalsByStatus(status, page, limit);

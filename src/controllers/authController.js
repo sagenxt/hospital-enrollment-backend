@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
 const { randomUUID } = require('crypto');
 const tokenCache = require('../lib/tokenCache');
+const {verifyGoogleRecaptcha} = require("../services/hospitalService");
 
 const SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
   const { username, password } = req.body;
+  await verifyGoogleRecaptcha(req)
   if (username === 'Admin' && password === 'DeptAdm!n@2025') {
     // Generate a unique jti for the token and sign token valid for 1 hour
     const jti = randomUUID();
