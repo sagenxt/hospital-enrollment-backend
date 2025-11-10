@@ -13,17 +13,17 @@ module.exports = function securityHeaders(req, res, next) {
       'http://localhost:3000'
     ]);
 
-    const reqOrigin = (req.headers && req.headers.origin) ? String(req.headers.origin).replace(/\/$/, '') : '';
-
-    if (allowedOrigins.has(reqOrigin)) {
-      res.setHeader('Access-Control-Allow-Origin', reqOrigin);
-      // Ensure caches vary per origin
-      res.setHeader('Vary', 'Origin');
-    } else if (process.env.ACCESS_CONTROL_ALLOW_ORIGIN) {
-      // fallback to env-configured origin if provided
-      res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
-      res.setHeader('Vary', 'Origin');
-    }
+    // const reqOrigin = (req.headers && req.headers.origin) ? String(req.headers.origin).replace(/\/$/, '') : '';
+    //
+    // if (allowedOrigins.has(reqOrigin)) {
+    //   res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+    //   // Ensure caches vary per origin
+    //   res.setHeader('Vary', 'Origin');
+    // } else if (process.env.ACCESS_CONTROL_ALLOW_ORIGIN) {
+    //   // fallback to env-configured origin if provided
+    //   res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+    //   res.setHeader('Vary', 'Origin');
+    // }
 
     // X-Content-Type-Options
     if (!res.getHeader('X-Content-Type-Options')) res.setHeader('X-Content-Type-Options', process.env.X_CONTENT_TYPE_OPTIONS || 'nosniff');
